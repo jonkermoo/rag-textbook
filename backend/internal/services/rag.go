@@ -65,7 +65,7 @@ func (s *RAGService) Query(req models.QueryRequest) (*models.QueryResponse, erro
 		return nil, fmt.Errorf("no relevant content found")
 	}
 
-	// Build context from chunks
+	// Build context from chunk
 	contextStr := buildContext(chunks)
 
 	// Generate answer using GPT-4
