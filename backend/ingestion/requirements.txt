@@ -2,8 +2,8 @@
 pypdf2==3.0.1
 
 # Database
-psycopg2-binary==2.9.9
-pgvector==0.2.4
+psycopg2-binary==2.9.11
+pgvector==0.2.5
 
 # OpenAI API
 openai==1.12.0
