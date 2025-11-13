@@ -31,13 +31,18 @@ func NewRAGService(db *database.DB, embeddingService *EmbeddingService) *RAGServ
 }
 
 // perform the complete RAG pipeline
-func (s *RAGService) Query(req models.QueryRequest) (*models.QueryResponse, error) {
+func (s *RAGService) Query(req models.QueryRequest, userID int) (*models.QueryResponse, error) {
 	startTime := time.Now()
 
 	// Validate textbook exists
 	textbook, err := s.db.GetTextbook(req.TextbookID)
 	if err != nil {
 		return nil, fmt.Errorf("textbook not found: %w", err)
+	}
+
+	// Check if user owns this textbook
+	if textbook.UserID != userID {
+		return nil, fmt.Errorf("permission denied: you don't own this textbook")
 	}
 
 	if !textbook.Processed {
