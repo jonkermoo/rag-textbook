@@ -102,7 +102,7 @@ Your task is to answer the student's question based ONLY on the provided context
 
 Rules:
 1. Only use information from the provided context
-2. If the context doesn't contain enough information, say so
+2. If the context doesn't contain enough information, use inference.
 3. Include page number citations when referencing specific information
 4. Be concise but thorough
 5. Use clear, student-friendly language`, textbookTitle)
