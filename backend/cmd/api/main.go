@@ -1,90 +1,77 @@
 package main
 
 import (
-	"database/sql"
-	"fmt"
 	"log"
+	"net/http"
 	"os"
 
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
+
+	"github.com/jonkermoo/rag-textbook/backend/internal/database"
+	"github.com/jonkermoo/rag-textbook/backend/internal/handlers"
+	"github.com/jonkermoo/rag-textbook/backend/internal/services"
 )
 
 func main() {
-	// Dot environment
+	// Load environment variables
 	err := godotenv.Load("../../.env")
 	if err != nil {
-		log.Fatal("Error loading .env file")
+		log.Fatal("Error loading .env file:", err)
 	}
 
-	// Build database connection string
-	dbHost := os.Getenv("DB_HOST")
-	dbPort := os.Getenv("DB_PORT")
-	dbUser := os.Getenv("DB_USER")
-	dbPassword := os.Getenv("DB_PASSWORD")
-	dbName := os.Getenv("DB_NAME")
-	dbSSLMode := os.Getenv("DB_SSLMODE")
-
-	connStr := fmt.Sprintf(
-		"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
-		dbHost, dbPort, dbUser, dbPassword, dbName, dbSSLMode,
-	)
-
-	// Connect to database
-	db, err := sql.Open("postgres", connStr)
+	// Initialize database connection
+	db, err := database.NewDB()
 	if err != nil {
-		log.Fatal("Failed to open database connection:", err)
+		log.Fatal("Failed to connect to database:", err)
 	}
 	defer db.Close()
+	log.Println("✓ Connected to database")
 
-	// Test the connection
-	err = db.Ping()
-	if err != nil {
-		log.Fatal("Failed to ping database:", err)
-	}
+	// Initialize services
+	embeddingService := services.NewEmbeddingService()
+	log.Println("✓ Embedding service initialized")
 
-	fmt.Println("Successfully connected to PostgreSQL")
+	ragService := services.NewRAGService(db, embeddingService)
+	log.Println("✓ RAG service initialized")
 
-	// Insert a test user
-	email := "alice@example.com"
-	var userID int
-	err = db.QueryRow(
-		"INSERT INTO users (email) VALUES ($1) ON CONFLICT (email) DO UPDATE SET email = EXCLUDED.email RETURNING id",
-		email,
-	).Scan(&userID)
+	// Initialize handlers
+	queryHandler := handlers.NewQueryHandler(ragService)
 
-	if err != nil {
-		log.Fatal("Failed to insert user:", err)
-	}
+	// Set up HTTP routes
+	http.HandleFunc("/api/query", queryHandler.HandleQuery)
+	http.HandleFunc("/api/health", handlers.HandleHealth)
 
-	fmt.Printf("Inserted/Updated user with ID: %d\n", userID)
+	// Enable CORS for frontend
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		// CORS headers
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 
-	// Query all users
-	rows, err := db.Query("SELECT id, email, created_at FROM users")
-	if err != nil {
-		log.Fatal("Failed to query users:", err)
-	}
-	defer rows.Close()
-
-	fmt.Println("\nAll users in database:")
-	fmt.Println("----------------------------")
-
-	for rows.Next() {
-		var id int
-		var email string
-		var createdAt string
-
-		err := rows.Scan(&id, &email, &createdAt)
-		if err != nil {
-			log.Fatal("Failed to scan row:", err)
+		// Handle preflight requests
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
 		}
 
-		fmt.Printf("ID: %d | Email: %s | Created: %s\n", id, email, createdAt)
+		// 404 for unknown routes
+		http.NotFound(w, r)
+	})
+
+	// Start server
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
 	}
 
-	if err = rows.Err(); err != nil {
-		log.Fatal("Error iterating rows:", err)
-	}
+	log.Printf("\nServer starting on http://localhost:%s", port)
+	log.Println("\nAvailable endpoints:")
+	log.Println("  POST /api/query  - Submit a question")
+	log.Println("  GET  /api/health - Health check")
+	log.Println("\nPress Ctrl+C to stop")
 
-	fmt.Println("\n Database test completed successfully!")
+	if err := http.ListenAndServe(":"+port, nil); err != nil {
+		log.Fatal("Server failed to start:", err)
+	}
 }
