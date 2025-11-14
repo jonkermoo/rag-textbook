@@ -105,6 +105,32 @@ func (db *DB) GetTextbook(id int) (*models.Textbook, error) {
 	return &textbook, nil
 }
 
+// Create a new textbook record
+func (db *DB) CreateTextbook(userID int, title, s3Key string) (*models.Textbook, error) {
+	var textbook models.Textbook
+
+	query := `
+		INSERT INTO textbooks (user_id, title, s3_key, processed)
+		VALUES ($1, $2, $3, false)
+		RETURNING id, user_id, title, s3_key, uploaded_at, processed
+	`
+
+	err := db.conn.QueryRow(query, userID, title, s3Key).Scan(
+		&textbook.ID,
+		&textbook.UserID,
+		&textbook.Title,
+		&textbook.S3Key,
+		&textbook.UploadedAt,
+		&textbook.Processed,
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to create textbook: %w", err)
+	}
+
+	return &textbook, nil
+}
+
 // Create a new user with hashed password and verification token
 func (db *DB) CreateUser(email, passwordHash, verificationToken string) (*models.User, error) {
 	var user models.User
