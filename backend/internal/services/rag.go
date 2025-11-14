@@ -66,9 +66,8 @@ func (s *RAGService) Query(req models.QueryRequest, userID int) (*models.QueryRe
 		return nil, fmt.Errorf("failed to search chunks: %w", err)
 	}
 
-	if len(chunks) == 0 {
-		return nil, fmt.Errorf("no relevant content found")
-	}
+	// Note: We allow processing even if no chunks found - GPT can still provide general guidance
+	// or let the user know the topic isn't covered in the textbook
 
 	// Build context from chunk
 	contextStr := buildContext(chunks)
@@ -101,16 +100,18 @@ func (s *RAGService) Query(req models.QueryRequest, userID int) (*models.QueryRe
 
 // Call GPT-4 to generate an answer
 func (s *RAGService) generateAnswer(question, contextStr, textbookTitle string) (string, error) {
-	systemPrompt := fmt.Sprintf(`You are a helpful tutor assistant. You have access to content from the textbook "%s".
+	systemPrompt := fmt.Sprintf(`You are a knowledgeable tutor with expertise in the subject matter covered in "%s".
 
-Your task is to answer the student's question based ONLY on the provided context from the textbook.
+Your task is to answer the student's question using the provided textbook context.
 
-Rules:
-1. Only use information from the provided context
-2. If the context doesn't contain enough information, use inference.
-3. Include page number citations when referencing specific information
-4. Be concise but thorough
-5. Use clear, student-friendly language`, textbookTitle)
+Guidelines:
+1. Provide clear, direct answers based on the context provided
+2. When relevant information is available, explain the concept thoroughly
+3. Include page number citations when referencing specific information (e.g., "According to page 42...")
+4. If the exact topic isn't covered in the provided context but you can make a reasonable inference from related content, do so confidently
+5. If the question is completely outside the scope of the textbook, politely explain that this topic isn't covered in this particular textbook
+6. Use clear, student-friendly language
+7. Be confident in your explanations - avoid phrases like "the textbook doesn't explicitly say" or "it's not directly stated"`, textbookTitle)
 
 	userPrompt := fmt.Sprintf(`Context from textbook:
 ---
