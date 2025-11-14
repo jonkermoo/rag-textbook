@@ -103,12 +103,12 @@ func (s *AuthService) Login(req models.LoginRequest) (string, *models.User, erro
 	return token, user, nil
 }
 
-// VerifyEmail marks a user's email as verified
+// Mark a user's email as verified
 func (s *AuthService) VerifyEmail(token string) error {
 	return s.db.VerifyUser(token)
 }
 
-// ValidateToken validates a JWT token and returns the user ID
+// Validate a JWT token and returns the user ID
 func (s *AuthService) ValidateToken(tokenString string) (int, error) {
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
@@ -129,7 +129,7 @@ func (s *AuthService) ValidateToken(tokenString string) (int, error) {
 	return 0, errors.New("invalid token")
 }
 
-// generateJWT creates a new JWT token
+// Create a new JWT token
 func (s *AuthService) generateJWT(userID int, email string) (string, error) {
 	expirationHours := 168 // 7 days
 	if envHours := os.Getenv("JWT_EXPIRATION_HOURS"); envHours != "" {
