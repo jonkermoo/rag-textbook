@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -101,6 +102,9 @@ func (h *UploadHandler) HandleUpload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Printf("File uploaded successfully: %s (textbook_id=%d)", filename, textbook.ID)
+	// Trigger background processing
+	h.triggerProcessing(textbook.ID, filepath)
+	log.Printf("File uploaded successfully: %s (textbook_id=%d)", filename, textbook.ID)
 
 	// Return response
 	response := models.UploadResponse{
@@ -111,4 +115,29 @@ func (h *UploadHandler) HandleUpload(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
+}
+
+// triggerProcessing launches the Python ingestion pipeline in the background
+func (h *UploadHandler) triggerProcessing(textbookID int, pdfPath string) {
+	go func() {
+		log.Printf("Starting background processing for textbook %d", textbookID)
+
+		pythonScript := "../../ingestion/src/process_existing.py"
+
+		// Run the Python script
+		cmd := exec.Command("python", pythonScript,
+			fmt.Sprintf("%d", textbookID),
+			pdfPath)
+
+		// Capture output
+		output, err := cmd.CombinedOutput()
+
+		if err != nil {
+			log.Printf("Error processing textbook %d: %v", textbookID, err)
+			log.Printf("Python output: %s", string(output))
+		} else {
+			log.Printf("Successfully processed textbook %d", textbookID)
+			log.Printf("Python output: %s", string(output))
+		}
+	}()
 }
