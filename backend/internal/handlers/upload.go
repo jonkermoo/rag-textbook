@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -20,9 +19,9 @@ import (
 )
 
 type UploadHandler struct {
-	db        *database.DB
-	s3Client  *s3.S3
-	s3Bucket  string
+	db       *database.DB
+	s3Client *s3.S3
+	s3Bucket string
 }
 
 func NewUploadHandler(db *database.DB) *UploadHandler {
