@@ -155,10 +155,10 @@ func (h *UploadHandler) triggerProcessing(textbookID int, s3Key string) {
 			return
 		}
 
-		pythonScript := "../../ingestion/src/process_existing.py"
+		pythonScript := "./ingestion/src/process_existing.py"
 
 		// Run the Python script with local temp file
-		cmd := exec.Command("python", pythonScript,
+		cmd := exec.Command("python3", pythonScript,
 			fmt.Sprintf("%d", textbookID),
 			tmpFile)
 

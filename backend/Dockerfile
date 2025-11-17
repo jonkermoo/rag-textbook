@@ -24,7 +24,7 @@ WORKDIR /app
 COPY --from=builder /app/main .
 
 # Copy Python ingestion scripts
-COPY ingestion/ ./ingestion/
+COPY backend/ingestion/ ./ingestion/
 
 # Install Python dependencies
 RUN pip3 install --break-system-packages -r ./ingestion/requirements.txt
