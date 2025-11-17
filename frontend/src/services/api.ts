@@ -3,7 +3,7 @@ import type { LoginRequest, LoginResponse, Textbook,
               TextbookStatus, QueryRequest, QueryResponse } from '../types';
 
 // Base URL for Go backend
-const API_BASE_URL = '/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 // Axios instance
 const api = axios.create({
