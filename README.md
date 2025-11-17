@@ -1,10 +1,8 @@
-﻿# RAG-Textbook-AI
-
-mental note to make a new name, this name sucks
+﻿# Vexra
 
 ## Overview
 
-RAG Textbook is a cloud-deployed, serverless Retrieval-Augmented Generation (RAG) system that transforms students' uploaded textbooks and lecture notes into personalized study guides and explanations. Students can upload their course materials and ask questions to receive AI-generated answers grounded in their specific textbooks, complete with page citations.
+Vexra is a cloud-deployed, serverless Retrieval-Augmented Generation (RAG) system that transforms students' uploaded textbooks and lecture notes into personalized study guides and explanations. Students can upload their course materials and ask questions to receive AI-generated answers grounded in their specific textbooks, complete with page citations.
 
 ## Tech Stack
 
@@ -35,10 +33,10 @@ RAG Textbook is a cloud-deployed, serverless Retrieval-Augmented Generation (RAG
 
 ### Cloud Infrastructure
 
-- AWS Lambda: Serverless compute
+- AWS EC2: Backend deployment
 - Amazon RDS: Managed database
 - Amazon S3: Textbook storage
 
 ### What am I working on right now?
-I'm currently working on the security features and authentication, that way each student has their own personalized groups of folders. It's 5:56 AM, I have class tomorrow. What am I doing
+i hate aws so much security dude
 
