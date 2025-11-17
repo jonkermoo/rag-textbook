@@ -17,9 +17,13 @@ import (
 
 func main() {
 	// Load environment variables
+	// Try loading from multiple possible locations (for local dev vs Docker)
 	err := godotenv.Load("../../.env")
 	if err != nil {
-		log.Fatal("Error loading .env file:", err)
+		err = godotenv.Load(".env")
+		if err != nil {
+			log.Println("Warning: Could not load .env file, using environment variables")
+		}
 	}
 
 	// Initialize database connection
