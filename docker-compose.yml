@@ -1,6 +1,7 @@
 version: "3.8"
 
 services:
+  # PostgreSQL with pgvector (for local dev only - use RDS in production)
   postgres:
     image: pgvector/pgvector:pg16
     container_name: ragtextbook-postgres
@@ -19,6 +20,47 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    profiles:
+      - local
+
+  # Go Backend + Python Processing
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: ragtextbook-backend
+    ports:
+      - "8080:8080"
+    environment:
+      # Database (use RDS endpoint in production)
+      - DB_HOST=${DB_HOST:-postgres}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+      - DB_NAME=${DB_NAME:-ragtextbook}
+
+      # AWS S3
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - S3_BUCKET_NAME=${S3_BUCKET_NAME}
+
+      # OpenAI
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+
+      # Server
+      - PORT=8080
+      - JWT_SECRET=${JWT_SECRET:-change-this-in-production}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
 volumes:
   postgres_data:

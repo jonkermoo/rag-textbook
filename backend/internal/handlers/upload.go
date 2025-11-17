@@ -11,17 +11,31 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/jonkermoo/rag-textbook/backend/internal/database"
 	"github.com/jonkermoo/rag-textbook/backend/internal/middleware"
 	"github.com/jonkermoo/rag-textbook/backend/internal/models"
 )
 
 type UploadHandler struct {
-	db *database.DB
+	db        *database.DB
+	s3Client  *s3.S3
+	s3Bucket  string
 }
 
 func NewUploadHandler(db *database.DB) *UploadHandler {
-	return &UploadHandler{db: db}
+	// Initialize AWS session
+	sess := session.Must(session.NewSession(&aws.Config{
+		Region: aws.String(os.Getenv("AWS_REGION")),
+	}))
+
+	return &UploadHandler{
+		db:       db,
+		s3Client: s3.New(sess),
+		s3Bucket: os.Getenv("S3_BUCKET_NAME"),
+	}
 }
 
 // Handle PDF upload
@@ -60,32 +74,23 @@ func (h *UploadHandler) HandleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create uploads directory if it doesn't exist
-	uploadsDir := "uploads"
-	if err := os.MkdirAll(uploadsDir, 0755); err != nil {
-		log.Printf("Failed to create uploads directory: %v", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
+	// Generate unique S3 key
+	s3Key := fmt.Sprintf("textbooks/%d/%s", userID, header.Filename)
 
-	// Generate unique filename
-	filename := fmt.Sprintf("%d_%s", userID, header.Filename)
-	filepath := filepath.Join(uploadsDir, filename)
-
-	// Save file to disk
-	dst, err := os.Create(filepath)
+	// Upload file to S3
+	_, err = h.s3Client.PutObject(&s3.PutObjectInput{
+		Bucket:      aws.String(h.s3Bucket),
+		Key:         aws.String(s3Key),
+		Body:        file,
+		ContentType: aws.String("application/pdf"),
+	})
 	if err != nil {
-		log.Printf("Failed to create file: %v", err)
-		http.Error(w, "Failed to save file", http.StatusInternalServerError)
+		log.Printf("Failed to upload to S3: %v", err)
+		http.Error(w, "Failed to upload file", http.StatusInternalServerError)
 		return
 	}
-	defer dst.Close()
 
-	if _, err := io.Copy(dst, file); err != nil {
-		log.Printf("Failed to copy file: %v", err)
-		http.Error(w, "Failed to save file", http.StatusInternalServerError)
-		return
-	}
+	log.Printf("File uploaded to S3: %s", s3Key)
 
 	// Get title from form or use filename
 	title := r.FormValue("title")
@@ -93,18 +98,18 @@ func (h *UploadHandler) HandleUpload(w http.ResponseWriter, r *http.Request) {
 		title = strings.TrimSuffix(header.Filename, ".pdf")
 	}
 
-	// Create textbook record in database
-	textbook, err := h.db.CreateTextbook(userID, title, filepath)
+	// Create textbook record in database with S3 key
+	textbook, err := h.db.CreateTextbook(userID, title, s3Key)
 	if err != nil {
 		log.Printf("Failed to create textbook record: %v", err)
 		http.Error(w, "Failed to create textbook record", http.StatusInternalServerError)
 		return
 	}
 
-	log.Printf("File uploaded successfully: %s (textbook_id=%d)", filename, textbook.ID)
+	log.Printf("File uploaded successfully: %s (textbook_id=%d)", s3Key, textbook.ID)
 	// Trigger background processing
-	h.triggerProcessing(textbook.ID, filepath)
-	log.Printf("File uploaded successfully: %s (textbook_id=%d)", filename, textbook.ID)
+	h.triggerProcessing(textbook.ID, s3Key)
+	log.Printf("Processing triggered for textbook_id=%d", textbook.ID)
 
 	// Return response
 	response := models.UploadResponse{
@@ -118,16 +123,45 @@ func (h *UploadHandler) HandleUpload(w http.ResponseWriter, r *http.Request) {
 }
 
 // triggerProcessing launches the Python ingestion pipeline in the background
-func (h *UploadHandler) triggerProcessing(textbookID int, pdfPath string) {
+func (h *UploadHandler) triggerProcessing(textbookID int, s3Key string) {
 	go func() {
 		log.Printf("Starting background processing for textbook %d", textbookID)
 
+		// Download PDF from S3 to temporary file
+		tmpFile := fmt.Sprintf("/tmp/textbook_%d.pdf", textbookID)
+
+		result, err := h.s3Client.GetObject(&s3.GetObjectInput{
+			Bucket: aws.String(h.s3Bucket),
+			Key:    aws.String(s3Key),
+		})
+		if err != nil {
+			log.Printf("Error downloading from S3: %v", err)
+			return
+		}
+		defer result.Body.Close()
+
+		// Create temporary file
+		outFile, err := os.Create(tmpFile)
+		if err != nil {
+			log.Printf("Error creating temp file: %v", err)
+			return
+		}
+		defer outFile.Close()
+		defer os.Remove(tmpFile) // Clean up after processing
+
+		// Copy S3 object to file
+		_, err = io.Copy(outFile, result.Body)
+		if err != nil {
+			log.Printf("Error saving temp file: %v", err)
+			return
+		}
+
 		pythonScript := "../../ingestion/src/process_existing.py"
 
-		// Run the Python script
+		// Run the Python script with local temp file
 		cmd := exec.Command("python", pythonScript,
 			fmt.Sprintf("%d", textbookID),
-			pdfPath)
+			tmpFile)
 
 		// Capture output
 		output, err := cmd.CombinedOutput()

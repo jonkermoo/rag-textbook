@@ -1,0 +1,32 @@
+# Git
+.git
+.gitignore
+
+# Frontend
+frontend/
+node_modules/
+
+# Environment files
+.env
+.env.local
+
+# Uploads (local only)
+uploads/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Database
+database/
+
+# Documentation
+README.md
+*.md
