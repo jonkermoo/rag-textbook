@@ -36,12 +36,12 @@ func NewAuthService(db *database.DB) *AuthService {
 func (s *AuthService) Register(req models.RegisterRequest) (*models.User, error) {
 	// Validate email
 	if !isValidEmail(req.Email) {
-		return nil, errors.New("invalid email format")
+		return nil, errors.New("Invalid email format")
 	}
 
 	// Validate password strength
 	if len(req.Password) < 8 {
-		return nil, errors.New("password must be at least 8 characters")
+		return nil, errors.New("Password must be at least 8 characters")
 	}
 
 	// Hash password
@@ -59,7 +59,7 @@ func (s *AuthService) Register(req models.RegisterRequest) (*models.User, error)
 	// Create user in database
 	user, err := s.db.CreateUser(req.Email, string(hashedPassword), verificationToken)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create user: %w", err)
+		return nil, fmt.Errorf("Failed to create user: %w", err)
 	}
 
 	// TODO: Send verification email (we'll skip for now)
@@ -77,18 +77,18 @@ func (s *AuthService) Login(req models.LoginRequest) (string, *models.User, erro
 	// Get user from database
 	user, err := s.db.GetUserByEmail(req.Email)
 	if err != nil {
-		return "", nil, errors.New("invalid email or password")
+		return "", nil, errors.New("Invalid email or password")
 	}
 
 	// Check if verified
 	if !user.Verified {
-		return "", nil, errors.New("email not verified")
+		return "", nil, errors.New("Email is not verified")
 	}
 
 	// Verify password
 	err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password))
 	if err != nil {
-		return "", nil, errors.New("invalid email or password")
+		return "", nil, errors.New("Invalid email or password")
 	}
 
 	// Generate JWT token
@@ -112,7 +112,7 @@ func (s *AuthService) VerifyEmail(token string) error {
 func (s *AuthService) ValidateToken(tokenString string) (int, error) {
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method")
+			return nil, fmt.Errorf("Unexpected signing method")
 		}
 		return s.jwtSecret, nil
 	})
@@ -126,7 +126,7 @@ func (s *AuthService) ValidateToken(tokenString string) (int, error) {
 		return userID, nil
 	}
 
-	return 0, errors.New("invalid token")
+	return 0, errors.New("Invalid token")
 }
 
 // Create a new JWT token
