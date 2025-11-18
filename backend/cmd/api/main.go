@@ -15,37 +15,9 @@ import (
 	"github.com/jonkermoo/rag-textbook/backend/internal/services"
 )
 
-// helper: central place to decide which origins are allowed
-func isOriginAllowed(origin string) bool {
-	if origin == "" {
-		return false
-	}
-
-	// 1) Local dev: any localhost port
-	if strings.HasPrefix(origin, "http://localhost") {
-		return true
-	}
-
-	// 2) Main production domains
-	if origin == "https://lexra.online" || origin == "https://www.lexra.online" {
-		return true
-	}
-
-	// 3) Any Vercel deployment/preview
-	if strings.HasSuffix(origin, ".vercel.app") {
-		return true
-	}
-
-	// 4) Any lexra.online subdomain (e.g. https://api.lexra.online)
-	if strings.HasSuffix(origin, ".lexra.online") {
-		return true
-	}
-
-	return false
-}
-
 func main() {
 	// Load environment variables
+	// Try loading from multiple possible locations (for local dev vs Docker)
 	err := godotenv.Load("../../.env")
 	if err != nil {
 		err = godotenv.Load(".env")
@@ -78,18 +50,39 @@ func main() {
 	// CORS middleware wrapper
 	corsMiddleware := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Allow multiple origins for development and production
 			origin := r.Header.Get("Origin")
+			allowedOrigins := []string{
+				"http://localhost:5173",    // Local development
+				"http://localhost:3000",    // Alternative local port
+				"https://www.lexra.online", // Production frontend (www)
+				"https://lexra.online",     // Production frontend (no www)
+				"https://lexra-1539-jwbn-johnny-zhus-projects-0f83c3d9.vercel.app", // Vercel deployment
+			}
 
-			if isOriginAllowed(origin) {
+			// Check if origin is in allowed list
+			isAllowed := false
+			for _, allowed := range allowedOrigins {
+				if origin == allowed || allowed == "*" {
+					isAllowed = true
+					break
+				}
+			}
+
+			// Also allow any Vercel preview URL or lexra.online subdomain
+			if strings.HasSuffix(origin, ".vercel.app") || strings.Contains(origin, "lexra.online") {
+				isAllowed = true
+			}
+
+			if isAllowed {
 				w.Header().Set("Access-Control-Allow-Origin", origin)
-				w.Header().Set("Access-Control-Allow-Credentials", "true")
 			}
 
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
 
-			// Preflight
-			if r.Method == http.MethodOptions {
+			if r.Method == "OPTIONS" {
 				w.WriteHeader(http.StatusOK)
 				return
 			}
@@ -107,7 +100,9 @@ func main() {
 	// Textbook management routes (protected)
 	http.Handle("/api/textbooks", corsMiddleware(authMiddleware(http.HandlerFunc(textbookHandler.HandleListTextbooks))))
 	http.HandleFunc("/api/textbooks/", func(w http.ResponseWriter, r *http.Request) {
+		// Apply CORS and auth middleware manually for paths with IDs
 		corsMiddleware(authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Route to appropriate handler based on path
 			if strings.HasSuffix(r.URL.Path, "/status") {
 				textbookHandler.HandleGetTextbookStatus(w, r)
 			} else if r.Method == http.MethodDelete {
@@ -120,18 +115,31 @@ func main() {
 		}))).ServeHTTP(w, r)
 	})
 
-	// Protected routes
+	// Set up HTTP routes
+	// Protected routes (require authentication)
 	http.Handle("/api/query", corsMiddleware(authMiddleware(http.HandlerFunc(queryHandler.HandleQuery))))
 	http.Handle("/api/upload", corsMiddleware(authMiddleware(http.HandlerFunc(uploadHandler.HandleUpload))))
 
-	// Public routes
+	// Public routes (no authentication needed)
 	http.Handle("/api/auth/register", corsMiddleware(http.HandlerFunc(authHandler.HandleRegister)))
 	http.Handle("/api/auth/login", corsMiddleware(http.HandlerFunc(authHandler.HandleLogin)))
 	http.Handle("/api/auth/verify", corsMiddleware(http.HandlerFunc(authHandler.HandleVerify)))
 	http.Handle("/api/health", corsMiddleware(http.HandlerFunc(handlers.HandleHealth)))
 
-	// Fallback for unknown routes – no special CORS needed here
+	// Enable CORS for frontend
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		// CORS headers
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+
+		// Handle preflight requests
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		// 404 for unknown routes
 		http.NotFound(w, r)
 	})
 
@@ -143,13 +151,13 @@ func main() {
 
 	log.Printf("\nServer starting on http://localhost:%s", port)
 	log.Println("\nAvailable endpoints:")
-	log.Println("  POST   /api/upload                 - Upload a textbook PDF")
-	log.Println("  GET    /api/textbooks              - List user's textbooks")
-	log.Println("  GET    /api/textbooks/:id          - Get textbook details")
-	log.Println("  DELETE /api/textbooks/:id          - Delete a textbook")
-	log.Println("  GET    /api/textbooks/:id/status   - Get processing status")
-	log.Println("  POST   /api/query                  - Submit a question")
-	log.Println("  GET    /api/health                 - Health check")
+	log.Println("  POST /api/upload - Upload a textbook PDF")
+	log.Println("  GET    /api/textbooks       - List user's textbooks")
+	log.Println("  GET    /api/textbooks/:id   - Get textbook details")
+	log.Println("  DELETE /api/textbooks/:id   - Delete a textbook")
+	log.Println("  GET    /api/textbooks/:id/status - Get processing status")
+	log.Println("  POST /api/query  - Submit a question")
+	log.Println("  GET  /api/health - Health check")
 	log.Println("\nPress Ctrl+C to stop")
 
 	if err := http.ListenAndServe(":"+port, nil); err != nil {
