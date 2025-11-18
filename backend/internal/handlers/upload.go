@@ -52,8 +52,8 @@ func (h *UploadHandler) HandleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse multipart form (max 50MB)
-	err := r.ParseMultipartForm(50 << 20)
+	// Parse multipart form (max 2GB)
+	err := r.ParseMultipartForm(2 << 30)
 	if err != nil {
 		http.Error(w, "File too large or invalid form data", http.StatusBadRequest)
 		return
