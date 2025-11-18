@@ -53,10 +53,10 @@ func main() {
 			// Allow multiple origins for development and production
 			origin := r.Header.Get("Origin")
 			allowedOrigins := []string{
-				"http://localhost:5173",           // Local development
-				"http://localhost:3000",           // Alternative local port
-				"https://www.lexra.online",        // Production frontend (www)
-				"https://lexra.online",            // Production frontend (no www)
+				"http://localhost:5173",    // Local development
+				"http://localhost:3000",    // Alternative local port
+				"https://www.lexra.online", // Production frontend (www)
+				"https://lexra.online",     // Production frontend (no www)
 			}
 
 			// Check if origin is in allowed list
