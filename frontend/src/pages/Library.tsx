@@ -407,7 +407,7 @@ export default function Library() {
                 <div className="text-xs mb-3">
                   {textbook.processed ? (
                     <span className="text-green-400 font-semibold">
-                      ✓ Ready
+                      {/* Empty when ready */}
                     </span>
                   ) : (
                     <span className="text-yellow-400 font-semibold">
